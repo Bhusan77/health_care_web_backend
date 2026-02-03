@@ -1,7 +1,7 @@
 import {UserService} from "../services/user.service";
 import { Request, Response } from "express";
 import z from "zod";
-import { CreateUserDTO, LoginUserDTO } from "../dtos/user.dto";
+import { CreateUserDTO, LoginUserDTO, UpdateUserDTO } from "../dtos/user.dto";
 let userService = new UserService();
 export class AuthController {
     async register(req: Request, res: Response) {
@@ -39,6 +39,49 @@ export class AuthController {
             );
 
         } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+    async updateUser(req: Request, res: Response) {
+        try {
+            const userId = req.user?._id;
+            if (!userId) {
+                return res.status(400).json(
+                    { success: false, message: "User ID not found in request" }
+                );
+            }
+            const parsedData = UpdateUserDTO.safeParse(req.body);
+            if (!parsedData.success) {
+                return res.status(400).json(
+                    { success: false, message: z.prettifyError(parsedData.error) }
+                )
+            }
+            const updateData = parsedData.data;
+            if(req.file){ 
+                updateData.profile= `/uploads/${req.file.filename}`;
+            }
+            
+            const updatedUser = await userService.updateUser(userId, updateData);
+            return res.status(200).json(
+                { success: true, message: "User updated", data: updatedUser }
+            );
+        } catch (error: Error | any) {
+            return res.status(error.statusCode ?? 500).json(
+                { success: false, message: error.message || "Internal Server Error" }
+            );
+        }
+    }
+    async getUserById(req: Request, res: Response) {
+        try {
+            const userId = req.params.id;
+            const user = await userService.getUserById(userId);
+            return res.status(200).json(
+                { success: true, message: "User retrieved", data: user }
+            );
+        }
+        catch (error: Error | any) {
             return res.status(error.statusCode ?? 500).json(
                 { success: false, message: error.message || "Internal Server Error" }
             );
