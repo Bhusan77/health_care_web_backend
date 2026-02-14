@@ -12,4 +12,9 @@ router.put("/update", authorizedMiddleware, uploads.single("profile"), authContr
 router.get("/users/:id", authController.getUserById)
 // add remaning routes like login, logout, etc.
 
+router.post(
+    '/request-password-reset',
+    authController.requestPasswordReset
+)
+router.post("/reset-password/:token", authController.resetPassword);
 export default router;
