@@ -1,10 +1,9 @@
 import { AppointmentStatus } from "../types/appointment.type";
 
 export interface CreateAppointmentDTO {
-  doctor: string;          // doctor id
-  date: string;            // "YYYY-MM-DD"
-  startTime: string;       // "HH:mm"
-  endTime: string;         // "HH:mm"
+  doctor: string;   // doctor id
+  date: string;     // "YYYY-MM-DD"
+  time: string;     // "HH:mm"
   reason?: string;
 }
 
@@ -18,8 +17,7 @@ export interface AdminUpdateStatusDTO {
 }
 
 export interface AdminRescheduleDTO {
-  date: string;          // "YYYY-MM-DD"
-  startTime: string;     // "HH:mm"
-  endTime: string;       // "HH:mm"
+  date: string;     // "YYYY-MM-DD"
+  time: string;     // "HH:mm"
   note?: string;
 }

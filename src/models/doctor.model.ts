@@ -5,7 +5,10 @@ export interface IDoctor extends Document {
   specialization: string;
   fee: number;
 
+  email?: string;
   phone?: string;
+  isActive: boolean;
+
   clinicAddress?: string;
   bio?: string;
   profile?: string;
@@ -20,10 +23,14 @@ const DoctorSchema = new Schema<IDoctor>(
     specialization: { type: String, required: true, trim: true },
     fee: { type: Number, required: true, min: 0 },
 
+   
+    email: { type: String, trim: true, lowercase: true },
+    isActive: { type: Boolean, default: true },
+
     phone: { type: String },
     clinicAddress: { type: String },
     bio: { type: String },
-    profile: { type: String }, // image filename if needed
+    profile: { type: String },
   },
   { timestamps: true }
 );

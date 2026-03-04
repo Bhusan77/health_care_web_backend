@@ -19,44 +19,30 @@ export class AppointmentRepository {
 
   findMine(patientId: string) {
     return AppointmentModel.find({ patient: patientId })
-      .sort({ date: -1, startTime: -1 })
+      .sort({ date: -1, time: -1 })
       .populate("doctor");
   }
 
   findAll(filters: any = {}) {
     return AppointmentModel.find(filters)
-      .sort({ date: -1, startTime: -1 })
+      .sort({ date: -1, time: -1 })
       .populate("doctor")
       .populate("patient", "-password");
+  }
+
+ 
+  async findSameSlot(doctor: string, date: string, time: string) {
+    return AppointmentModel.findOne({
+      doctor: new mongoose.Types.ObjectId(doctor),
+      date,
+      time,
+      status: { $ne: "CANCELLED" as AppointmentStatus },
+    });
   }
 
   updateById(id: string, update: any) {
     return AppointmentModel.findByIdAndUpdate(id, update, { new: true })
       .populate("doctor")
       .populate("patient", "-password");
-  }
-
-  // Overlap check:
-  // existing.start < newEnd AND existing.end > newStart
-  async findOverlap(
-    doctorId: string,
-    date: string,
-    startTime: string,
-    endTime: string,
-    ignoreAppointmentId?: string
-  ) {
-    const q: any = {
-      doctor: new mongoose.Types.ObjectId(doctorId),
-      date,
-      status: { $ne: "CANCELLED" as AppointmentStatus },
-      startTime: { $lt: endTime },
-      endTime: { $gt: startTime },
-    };
-
-    if (ignoreAppointmentId) {
-      q._id = { $ne: new mongoose.Types.ObjectId(ignoreAppointmentId) };
-    }
-
-    return AppointmentModel.findOne(q);
   }
 }

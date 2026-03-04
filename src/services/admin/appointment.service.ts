@@ -29,9 +29,10 @@ export class AdminAppointmentService {
     const appt = await repo.findById(id);
     if (!appt) throw new HttpError(404, "Appointment not found");
 
-    // Only allow these changes (you can expand later)
     const allowed = ["CONFIRMED", "CANCELLED", "COMPLETED"];
-    if (!allowed.includes(dto.status)) throw new HttpError(400, "Invalid status update");
+    if (!allowed.includes(dto.status)) {
+      throw new HttpError(400, "Invalid status update");
+    }
 
     return repo.updateById(id, {
       status: dto.status,
@@ -42,26 +43,32 @@ export class AdminAppointmentService {
   async reschedule(id: string, dto: AdminRescheduleDTO) {
     const appt = await repo.findById(id);
     if (!appt) throw new HttpError(404, "Appointment not found");
-    if (appt.status === "CANCELLED") throw new HttpError(400, "Cannot reschedule cancelled appointment");
-    if (appt.status === "COMPLETED") throw new HttpError(400, "Cannot reschedule completed appointment");
 
-    if (!isValidDate(dto.date)) throw new HttpError(400, "Invalid date format (YYYY-MM-DD)");
-    if (!isValidTime(dto.startTime) || !isValidTime(dto.endTime))
+    if (appt.status === "CANCELLED") {
+      throw new HttpError(400, "Cannot reschedule cancelled appointment");
+    }
+    if (appt.status === "COMPLETED") {
+      throw new HttpError(400, "Cannot reschedule completed appointment");
+    }
+
+    if (!isValidDate(dto.date)) {
+      throw new HttpError(400, "Invalid date format (YYYY-MM-DD)");
+    }
+    if (!isValidTime(dto.time)) {
       throw new HttpError(400, "Invalid time format (HH:mm)");
+    }
 
-    const overlap = await repo.findOverlap(
-      String(appt.doctor),
-      dto.date,
-      dto.startTime,
-      dto.endTime,
-      id
-    );
-    if (overlap) throw new HttpError(409, "This slot is already booked");
+
+    const overlap = await repo.findSameSlot(String(appt.doctor), dto.date, dto.time);
+
+    // if overlap exists and it's not the same appointment
+    if (overlap && String(overlap._id) !== String(appt._id)) {
+      throw new HttpError(409, "This slot is already booked");
+    }
 
     return repo.updateById(id, {
       date: dto.date,
-      startTime: dto.startTime,
-      endTime: dto.endTime,
+      time: dto.time,
       adminNote: dto.note,
     });
   }

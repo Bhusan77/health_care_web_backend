@@ -10,11 +10,7 @@ router.post("/register", authController.register)
 router.post("/login", authController.login)
 router.put("/update", authorizedMiddleware, uploads.single("profile"), authController.updateUser)
 router.get("/users/:id", authController.getUserById)
-// add remaning routes like login, logout, etc.
-
-router.post(
-    '/request-password-reset',
-    authController.requestPasswordReset
+router.post("/request-password-reset",authController.requestPasswordReset
 )
 router.post("/reset-password/:token", authController.resetPassword);
 export default router;

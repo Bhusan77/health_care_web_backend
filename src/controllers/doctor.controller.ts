@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as DoctorService from "../services/doctor.service";
 
-// ✅ Public/User: Get all doctors
+
 export const getDoctors = async (req: Request, res: Response) => {
   try {
     const { q, specialization } = req.query as any;
@@ -16,7 +16,7 @@ export const getDoctors = async (req: Request, res: Response) => {
   }
 };
 
-// ✅ Public/User: Get doctor by id
+
 export const getDoctorById = async (req: Request, res: Response) => {
   try {
     const doctor = await DoctorService.getDoctorByIdService(req.params.id);

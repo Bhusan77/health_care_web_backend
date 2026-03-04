@@ -7,36 +7,29 @@ const repo = new AppointmentRepository();
 
 const isValidDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date);
 const isValidTime = (t: string) => /^\d{2}:\d{2}$/.test(t);
-const timeToMinutes = (t: string) => {
-  const [h, m] = t.split(":").map(Number);
-  return h * 60 + m;
-};
 
 export class AppointmentService {
   async createAppointment(patientId: string, dto: CreateAppointmentDTO) {
-    const { doctor, date, startTime, endTime, reason } = dto;
+    const { doctor, date, reason } = dto;
+
+    const time = String(dto.time || "").trim(); // ✅ normalize
 
     if (!doctor) throw new HttpError(400, "Doctor is required");
     if (!isValidDate(date)) throw new HttpError(400, "Invalid date format (YYYY-MM-DD)");
-    if (!isValidTime(startTime) || !isValidTime(endTime))
-      throw new HttpError(400, "Invalid time format (HH:mm)");
-
-    const s = timeToMinutes(startTime);
-    const e = timeToMinutes(endTime);
-    if (e <= s) throw new HttpError(400, "End time must be after start time");
+    if (!isValidTime(time)) throw new HttpError(400, "Invalid time format (HH:mm)");
 
     const doctorExists = await DoctorModel.findById(doctor);
     if (!doctorExists) throw new HttpError(404, "Doctor not found");
 
-    const overlap = await repo.findOverlap(doctor, date, startTime, endTime);
+    // ✅ check same doctor + same date + same time (excluding cancelled inside repo)
+    const overlap = await repo.findSameSlot(doctor, date, time);
     if (overlap) throw new HttpError(409, "This slot is already booked");
 
     const appt = await repo.create({
       patient: patientId as any,
       doctor: doctor as any,
       date,
-      startTime,
-      endTime,
+      time,
       reason,
       status: "PENDING",
     });
@@ -51,17 +44,15 @@ export class AppointmentService {
   async getMyAppointmentById(patientId: string, appointmentId: string) {
     const appt = await repo.findByIdPopulate(appointmentId);
     if (!appt) throw new HttpError(404, "Appointment not found");
+
     if (String(appt.patient?._id ?? appt.patient) !== String(patientId)) {
       throw new HttpError(403, "Forbidden");
     }
+
     return appt;
   }
 
-  async cancelMyAppointment(
-    patientId: string,
-    appointmentId: string,
-    dto: CancelAppointmentDTO
-  ) {
+  async cancelMyAppointment(patientId: string, appointmentId: string, dto: CancelAppointmentDTO) {
     const appt = await repo.findById(appointmentId);
     if (!appt) throw new HttpError(404, "Appointment not found");
 

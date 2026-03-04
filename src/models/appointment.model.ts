@@ -5,9 +5,8 @@ export interface IAppointment extends Document {
   patient: mongoose.Types.ObjectId; // User
   doctor: mongoose.Types.ObjectId;  // Doctor
 
-  date: string;      // "YYYY-MM-DD"
-  startTime: string; // "HH:mm"
-  endTime: string;   // "HH:mm"
+  date: string; // "YYYY-MM-DD"
+  time: string; // "HH:mm"
 
   reason?: string;
 
@@ -26,8 +25,7 @@ const AppointmentSchema = new Schema<IAppointment>(
     doctor: { type: Schema.Types.ObjectId, ref: "Doctor", required: true },
 
     date: { type: String, required: true, trim: true },
-    startTime: { type: String, required: true, trim: true },
-    endTime: { type: String, required: true, trim: true },
+    time: { type: String, required: true, trim: true }, // ✅ single time
 
     reason: { type: String, trim: true },
 
@@ -44,8 +42,8 @@ const AppointmentSchema = new Schema<IAppointment>(
   { timestamps: true }
 );
 
-// Helpful index for searches
-AppointmentSchema.index({ doctor: 1, date: 1, startTime: 1, endTime: 1 });
+// ✅ Helpful index for searches (doctor + slot)
+AppointmentSchema.index({ doctor: 1, date: 1, time: 1 });
 AppointmentSchema.index({ patient: 1, date: 1 });
 
 export const AppointmentModel = mongoose.model<IAppointment>(
