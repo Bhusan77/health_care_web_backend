@@ -32,35 +32,42 @@ export const initiateEsewa = async (req: Request, res: Response) => {
 
 export const esewaSuccess = async (req: Request, res: Response) => {
   try {
-    const txnUuid = String(
-      req.query.transaction_uuid ||
-        req.query.txnUuid ||
-        req.query.pid ||
-        req.query.oid ||
-        ""
-    );
+    let txnId = String(req.query.transaction_uuid || req.query.txnUuid || "");
+    const dataEncoded = String(req.query.data || "");
 
-    const totalAmountRaw = String(req.query.total_amount || "");
+    if (!txnId && dataEncoded) {
+      try {
+        const decoded = JSON.parse(Buffer.from(dataEncoded, "base64").toString("utf-8"));
+        txnId = decoded.transaction_uuid || decoded.transaction_id || "";
+      } catch (e) {}
+    }
 
-    if (!txnUuid) {
+    if (!txnId) {
       return res.redirect(`${FRONTEND_FAILURE}?reason=missing_transaction_uuid`);
     }
 
-    const totalAmount = totalAmountRaw ? Number(totalAmountRaw) : undefined;
+    const totalAmountRaw = String(req.query.total_amount || "");
+    const totalAmount = totalAmountRaw ? Number(totalAmountRaw.replace(/,/g, "")) : undefined;
 
-    await PaymentService.handleEsewaSuccessV2({ txnUuid, totalAmount });
+    const { payment } = await PaymentService.handleEsewaSuccessV2({ txnUuid: txnId, totalAmount });
 
-    return res.redirect(`${FRONTEND_SUCCESS}?txn=${encodeURIComponent(txnUuid)}`);
+    return res.json({
+      success: true,
+      message: "Payment verified successfully",
+      pid: txnId,
+      refId: payment?.esewaRefId || ""
+    });
   } catch (error: any) {
-    return res.redirect(
-      `${FRONTEND_FAILURE}?reason=${encodeURIComponent(error.message || "verify_failed")}`
-    );
+    return res.status(error.statusCode || 400).json({
+      success: false,
+      message: error.message || "Payment verification failed"
+    });
   }
 };
 
 export const esewaFailure = async (req: Request, res: Response) => {
   try {
-    const txnUuid = String(
+    let txnId = String(
       req.query.transaction_uuid ||
         req.query.txnUuid ||
         req.query.pid ||
@@ -68,16 +75,25 @@ export const esewaFailure = async (req: Request, res: Response) => {
         ""
     );
 
-    await PaymentService.handleEsewaFailure(txnUuid || undefined);
+    const dataEncoded = String(req.query.data || "");
+    if (!txnId && dataEncoded) {
+      try {
+        const decoded = JSON.parse(Buffer.from(dataEncoded, "base64").toString("utf-8"));
+        txnId = decoded.transaction_uuid || decoded.transaction_id || "";
+      } catch (e) {}
+    }
 
-    const url =
-      `${FRONTEND_FAILURE}?reason=cancelled_or_failed` +
-      (txnUuid ? `&txn=${encodeURIComponent(txnUuid)}` : "");
+    await PaymentService.handleEsewaFailure(txnId || undefined);
 
-    return res.redirect(url);
+    return res.json({
+      success: false,
+      message: "Payment failed or cancelled",
+      pid: txnId || ""
+    });
   } catch (error: any) {
-    return res.redirect(
-      `${FRONTEND_FAILURE}?reason=${encodeURIComponent(error.message || "failed")}`
-    );
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to process failure callback"
+    });
   }
 };

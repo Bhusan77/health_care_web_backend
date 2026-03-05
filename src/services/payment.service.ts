@@ -63,7 +63,7 @@ export const handleEsewaSuccessV2 = async (args: {
   });
 
   // 👇 helpful debug (remove later)
-  // console.log("ESEWA VERIFY RAW:", verify.raw);
+  console.log("DEBUG: ESEWA VERIFY RESPONSE BODY:", JSON.stringify(verify.raw, null, 2));
 
   if (!verify.ok) {
     payment.status = "FAILED";
@@ -72,6 +72,20 @@ export const handleEsewaSuccessV2 = async (args: {
   }
 
   payment.status = "SUCCESS";
+  
+  // Robust extraction of refId by checking common eSewa ePay v2 response keys
+  const esewaRefId = verify.raw?.ref_id || 
+                    verify.raw?.transaction_code || 
+                    verify.raw?.refId || 
+                    verify.raw?.transaction?.transaction_code ||
+                    verify.raw?.data?.transaction_code ||
+                    verify.raw?.result?.transaction_code ||
+                    null;
+    
+  if (esewaRefId) {
+    payment.esewaRefId = String(esewaRefId);
+  }
+
   await payment.save();
 
   await OrderModel.findByIdAndUpdate(payment.order, { status: "CONFIRMED" });
