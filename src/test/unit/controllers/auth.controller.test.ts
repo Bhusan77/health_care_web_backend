@@ -1,17 +1,12 @@
 import { AuthController } from "../../../controllers/auth.controller";
 import { UserService } from "../../../services/user.service";
 
-jest.mock("../../services/user.service", () => {
-  return {
-    UserService: jest.fn().mockImplementation(() => ({
-      createUser: jest.fn(),
-      loginUser: jest.fn(),
-      updateUser: jest.fn(),
-      getUserById: jest.fn(),
-      sendResetPasswordEmail: jest.fn(),
-      resetPassword: jest.fn(),
-    })),
-  };
+// optional: silence console logs from controller/service during tests
+beforeAll(() => {
+  jest.spyOn(console, "log").mockImplementation(() => {});
+});
+afterAll(() => {
+  (console.log as any).mockRestore?.();
 });
 
 const mockRes = () => {
@@ -23,72 +18,75 @@ const mockRes = () => {
 
 describe("AuthController (unit)", () => {
   let controller: AuthController;
-  let service: any;
 
   beforeEach(() => {
     controller = new AuthController();
-    service = (UserService as unknown as jest.Mock).mock.results[0].value;
-    jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
-  // -------------------------
-  // register
-  // -------------------------
   test("register -> creates user (201)", async () => {
-    const newUser = { _id: "1", email: "a@test.com" };
-    service.createUser.mockResolvedValue(newUser);
+    const createdUser = { _id: "1", email: "test@example.com" };
+
+    jest
+      .spyOn(UserService.prototype, "createUser")
+      .mockResolvedValue(createdUser as any);
 
     const req: any = {
-      body: { username: "a", email: "a@test.com", password: "Password123!" },
+      body: {
+        username: "testuser",
+        email: "test@example.com",
+        password: "Password123!",
+      },
     };
+
     const res = mockRes();
 
     await controller.register(req, res);
 
-    expect(service.createUser).toHaveBeenCalled();
+    expect(UserService.prototype.createUser).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
       message: "User Created",
-      data: newUser,
+      data: createdUser,
     });
   });
 
   test("register -> validation error returns 400", async () => {
-    const req: any = { body: {} };
+    const req: any = { body: {} }; // invalid
     const res = mockRes();
 
     await controller.register(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
   });
 
-  // -------------------------
-  // login
-  // -------------------------
   test("login -> returns token and user", async () => {
-    const user = { _id: "1", email: "a@test.com" };
+    const user = { _id: "1", email: "test@example.com" };
+    const token = "token123";
 
-    service.loginUser.mockResolvedValue({
-      token: "jwt-token",
-      user,
-    });
+    jest
+      .spyOn(UserService.prototype, "loginUser")
+      .mockResolvedValue({ token, user } as any);
 
     const req: any = {
-      body: { email: "a@test.com", password: "Password123!" },
+      body: { email: "test@example.com", password: "Password123!" },
     };
 
     const res = mockRes();
 
     await controller.login(req, res);
 
-    expect(service.loginUser).toHaveBeenCalled();
+    expect(UserService.prototype.loginUser).toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
       message: "Login successful",
       data: user,
-      token: "jwt-token",
+      token,
     });
   });
 
@@ -99,26 +97,32 @@ describe("AuthController (unit)", () => {
     await controller.login(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false })
+    );
   });
 
-  // -------------------------
-  // updateUser
-  // -------------------------
   test("updateUser -> updates user", async () => {
-    const updated = { _id: "1", username: "new" };
-    service.updateUser.mockResolvedValue(updated);
+    const updated = { _id: "1", username: "updated" };
+
+    jest
+      .spyOn(UserService.prototype, "updateUser")
+      .mockResolvedValue(updated as any);
 
     const req: any = {
       user: { _id: "1" },
-      body: { username: "new" },
-      file: undefined,
+      body: { username: "updated" },
+      file: { filename: "abc.png" },
     };
 
     const res = mockRes();
 
     await controller.updateUser(req, res);
 
-    expect(service.updateUser).toHaveBeenCalled();
+    expect(UserService.prototype.updateUser).toHaveBeenCalledWith(
+      "1",
+      expect.objectContaining({ profile: "/uploads/abc.png" })
+    );
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
       success: true,
@@ -128,43 +132,60 @@ describe("AuthController (unit)", () => {
   });
 
   test("updateUser -> returns 400 if userId missing", async () => {
-    const req: any = { user: undefined, body: {} };
+    const req: any = { user: undefined, body: { username: "x" } };
     const res = mockRes();
 
     await controller.updateUser(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: "User ID not found in request",
+    });
   });
 
-  // -------------------------
-  // getUserById
-  // -------------------------
   test("getUserById -> returns user", async () => {
-    const user = { _id: "1" };
-    service.getUserById.mockResolvedValue(user);
+    const user = { _id: "1", email: "test@example.com" };
+
+    jest
+      .spyOn(UserService.prototype, "getUserById")
+      .mockResolvedValue(user as any);
 
     const req: any = { params: { id: "1" } };
     const res = mockRes();
 
     await controller.getUserById(req, res);
 
-    expect(service.getUserById).toHaveBeenCalledWith("1");
+    expect(UserService.prototype.getUserById).toHaveBeenCalledWith("1");
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      message: "User retrieved",
+      data: user,
+    });
   });
 
-  // -------------------------
-  // requestPasswordReset
-  // -------------------------
   test("requestPasswordReset -> sends reset email", async () => {
-    service.sendResetPasswordEmail.mockResolvedValue(true);
+    const user = { _id: "1", email: "test@example.com" };
 
-    const req: any = { body: { email: "a@test.com" } };
+    jest
+      .spyOn(UserService.prototype, "sendResetPasswordEmail")
+      .mockResolvedValue(user as any);
+
+    const req: any = { body: { email: "test@example.com" } };
     const res = mockRes();
 
     await controller.requestPasswordReset(req, res);
 
-    expect(service.sendResetPasswordEmail).toHaveBeenCalledWith("a@test.com");
+    expect(UserService.prototype.sendResetPasswordEmail).toHaveBeenCalledWith(
+      "test@example.com"
+    );
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      data: user,
+      message: "Password reset email sent",
+    });
   });
 
   test("requestPasswordReset -> returns 400 if email missing", async () => {
@@ -174,27 +195,34 @@ describe("AuthController (unit)", () => {
     await controller.requestPasswordReset(req, res);
 
     expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      message: "Email is required",
+    });
   });
 
-  // -------------------------
-  // resetPassword
-  // -------------------------
   test("resetPassword -> resets password", async () => {
-    service.resetPassword.mockResolvedValue(true);
+    jest
+      .spyOn(UserService.prototype, "resetPassword")
+      .mockResolvedValue(true as any);
 
     const req: any = {
-      params: { token: "abc123" },
-      body: { newPassword: "Password123!" },
+      params: { token: "token123" },
+      body: { newPassword: "NewPassword123!" },
     };
 
     const res = mockRes();
 
     await controller.resetPassword(req, res);
 
-    expect(service.resetPassword).toHaveBeenCalledWith(
-      "abc123",
-      "Password123!"
+    expect(UserService.prototype.resetPassword).toHaveBeenCalledWith(
+      "token123",
+      "NewPassword123!"
     );
     expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith({
+      success: true,
+      message: "Password has been reset successfully.",
+    });
   });
 });
