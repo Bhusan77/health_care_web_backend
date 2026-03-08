@@ -9,7 +9,9 @@ export const initiateEsewaForOrder = async (userId: string, orderId: string) => 
   const order = await OrderModel.findById(orderId);
   if (!order) throw new HttpError(404, "Order not found");
 
-  if (String(order.user) !== String(userId)) throw new HttpError(403, "Not your order");
+  if (String(order.user) !== String(userId)) {
+    throw new HttpError(403, "Not your order");
+  }
 
   if (order.status !== "PENDING") {
     throw new HttpError(409, "Order cannot be paid in current state");
@@ -62,33 +64,46 @@ export const handleEsewaSuccessV2 = async (args: {
     totalAmount: amountToVerify,
   });
 
-  // 👇 helpful debug (remove later)
-  console.log("DEBUG: ESEWA VERIFY RESPONSE BODY:", JSON.stringify(verify.raw, null, 2));
+  console.log(
+    "DEBUG: ESEWA VERIFY RESPONSE BODY:",
+    JSON.stringify(verify.raw, null, 2)
+  );
 
   if (!verify.ok) {
     payment.status = "FAILED";
     await payment.save();
+
+    await OrderModel.findByIdAndUpdate(payment.order, {
+      status: "PENDING",
+      paymentStatus: "FAILED",
+      paymentMethod: "ESEWA",
+    });
+
     throw new HttpError(400, "Payment verification failed");
   }
 
   payment.status = "SUCCESS";
-  
-  // Robust extraction of refId by checking common eSewa ePay v2 response keys
-  const esewaRefId = verify.raw?.ref_id || 
-                    verify.raw?.transaction_code || 
-                    verify.raw?.refId || 
-                    verify.raw?.transaction?.transaction_code ||
-                    verify.raw?.data?.transaction_code ||
-                    verify.raw?.result?.transaction_code ||
-                    null;
-    
+
+  const esewaRefId =
+    verify.raw?.ref_id ||
+    verify.raw?.transaction_code ||
+    verify.raw?.refId ||
+    verify.raw?.transaction?.transaction_code ||
+    verify.raw?.data?.transaction_code ||
+    verify.raw?.result?.transaction_code ||
+    null;
+
   if (esewaRefId) {
     payment.esewaRefId = String(esewaRefId);
   }
 
   await payment.save();
 
-  await OrderModel.findByIdAndUpdate(payment.order, { status: "CONFIRMED" });
+  await OrderModel.findByIdAndUpdate(payment.order, {
+    status: "CONFIRMED",
+    paymentStatus: "SUCCESS",
+    paymentMethod: "ESEWA",
+  });
 
   return { already: false, payment };
 };
@@ -101,6 +116,12 @@ export const handleEsewaFailure = async (txnUuid?: string) => {
 
   payment.status = "FAILED";
   await payment.save();
+
+  await OrderModel.findByIdAndUpdate(payment.order, {
+    status: "PENDING",
+    paymentStatus: "FAILED",
+    paymentMethod: "ESEWA",
+  });
 
   return { updated: true };
 };
